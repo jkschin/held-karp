@@ -1,6 +1,9 @@
 import itertools
 import random
 import sys
+import math
+import numpy as np
+import cv2
 
 
 def held_karp(dists):
@@ -68,13 +71,31 @@ def held_karp(dists):
     return opt, list(reversed(path))
 
 
-def generate_distances(n):
+def generate_distances(coords):
+    n = len(coords)
     dists = [[0] * n for i in range(n)]
     for i in range(n):
         for j in range(i+1, n):
-            dists[i][j] = dists[j][i] = random.randint(1, 99)
+            pointA = coords[i]
+            pointB = coords[j]
+            x_dist = (pointA[0] - pointB[0])**2
+            y_dist = (pointA[1] - pointB[1])**2
+            dist = math.sqrt(x_dist + y_dist)
+            dists[i][j] = dists[j][i] = dist
 
     return dists
+
+def generate_coordinates(n):
+    coords = []
+    for _ in range(n):
+        while True:
+            x = random.randint(1, 99)
+            y = random.randint(1, 99)
+            coord = (x, y)
+            if coord not in coords:
+                coords.append(coord)
+                break
+    return coords
 
 
 def read_distances(filename):
@@ -89,19 +110,62 @@ def read_distances(filename):
 
     return dists
 
+def draw_dots(img, coords):
+    for coord in coords:
+        y, x = coord
+        # OpenCV has BGR instead of RGB
+        img[x, y] = (1)
+    return img
 
+
+def draw_path(img, coords, path):
+    for i in range(1, len(path)):
+        a = coords[path[i]]
+        b = coords[path[i-1]]
+        img = cv2.line(img, a, b, (2), 1)
+    a = coords[path[0]]
+    b = coords[path[-1]]
+    img = cv2.line(img, a, b, (2), 1)
+    return img
+
+def draw_sol(img, coords, path):
+    img = draw_path(img, coords, path)
+    img = draw_dots(img, coords)
+    return img
+
+def generate_pair(n):
+    coords = generate_coordinates(n)
+    dists = generate_distances(coords)
+    tsp_sol = held_karp(dists)
+    inp = np.zeros((100, 100), np.uint8)
+    inp = draw_dots(inp, coords)
+    out = np.zeros((100, 100), np.uint8)
+    out = draw_sol(out, coords, tsp_sol[1])
+    return inp, out
+
+random.seed(1)
 if __name__ == '__main__':
     arg = sys.argv[1]
 
     if arg.endswith('.csv'):
         dists = read_distances(arg)
     else:
-        dists = generate_distances(int(arg))
+        for i in range(100):
+            coords = generate_coordinates(int(arg))
+            dists = generate_distances(coords)
+            tsp_sol = held_karp(dists)
+            img = np.ones((100, 100, 3), np.uint8)
+            img *= 255
+            img = draw_dots(img, coords)
+            cv2.imwrite("inputs/img%d.png" %i, img)
+            img = draw_sol(img, coords, tsp_sol[1])
+            cv2.imwrite("outputs/img%d.png" %i, img)
+
 
     # Pretty-print the distance matrix
     for row in dists:
-        print(''.join([str(n).rjust(3, ' ') for n in row]))
+        print(''.join([str(int(n)).rjust(3, ' ') for n in row]))
 
     print('')
 
-    print(held_karp(dists))
+    print(tsp_sol)
