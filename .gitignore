@@ -5,3 +5,7 @@ __pycache__/
 
 # pyenv
 .python-version
+inputs/
+outputs/
+.DS_Store
+.idea/

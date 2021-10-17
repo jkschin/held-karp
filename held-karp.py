@@ -5,6 +5,13 @@ import math
 import numpy as np
 import cv2
 
+size = (256, 256, 3)
+delta = 1
+RED = (0, 0, 255)
+BLUE = (255, 0, 0)
+GREEN = (0, 255, 0)
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
 
 def held_karp(dists):
     """
@@ -82,19 +89,44 @@ def generate_distances(coords):
             y_dist = (pointA[1] - pointB[1])**2
             dist = math.sqrt(x_dist + y_dist)
             dists[i][j] = dists[j][i] = dist
+    return dists
 
+def generate_manhattan_distances(coords):
+    n = len(coords)
+    dists = [[0] * n for i in range(n)]
+    for i in range(n):
+        for j in range(i+1, n):
+            pointA = coords[i]
+            pointB = coords[j]
+            x_dist = abs(pointA[0] - pointB[0])
+            y_dist = abs(pointA[1] - pointB[1])
+            dist = x_dist + y_dist
+            dists[i][j] = dists[j][i] = dist
     return dists
 
 def generate_coordinates(n):
+    xs = []
+    ys = []
     coords = []
     for _ in range(n):
         while True:
-            x = random.randint(1, 99)
-            y = random.randint(1, 99)
+            x = random.randint(delta, size[0] - delta)
+            y = random.randint(delta, size[1] - delta)
+            if len(xs) != 0:
+                delta_x = min(map(lambda z: abs(z - x), xs))
+                delta_y = min(map(lambda z: abs(z - y), ys))
+                if delta_x > 10 and delta_y > 10:
+                    pass
+                else:
+                    continue
             coord = (x, y)
             if coord not in coords:
-                coords.append(coord)
+                xs.append(x)
+                ys.append(y)
                 break
+    for i in range(len(xs)):
+        for j in range(len(ys)):
+            coords.append([xs[i], ys[j]])
     return coords
 
 
@@ -110,11 +142,11 @@ def read_distances(filename):
 
     return dists
 
-def draw_dots(img, coords):
+def draw_dots(img, coords, color):
     for coord in coords:
-        y, x = coord
+        x, y = coord
         # OpenCV has BGR instead of RGB
-        img[x, y] = (1)
+        img[y, x] = color
     return img
 
 
@@ -143,29 +175,81 @@ def generate_pair(n):
     out = draw_sol(out, coords, tsp_sol[1])
     return inp, out
 
+def generate_city(coords):
+    img = np.zeros(size, np.uint8)
+    for coord in coords:
+        x, y = coord
+        xa = [x, 0]
+        xb = [x, size[0]]
+        ya = [0, y]
+        yb = [size[1], y]
+        img = cv2.line(img, xa, xb, WHITE, 1)
+        img = cv2.line(img, ya, yb, WHITE, 1)
+    # img = draw_dots(img, coords, (0, 0, 255))
+    min_x = min(map(lambda x: x[0], coords))
+    max_x = max(map(lambda x: x[0], coords))
+    min_y = min(map(lambda x: x[1], coords))
+    max_y = max(map(lambda x: x[1], coords))
+    new_img = np.zeros(size, np.uint8)
+    new_img[min_y: max_y+1, min_x:max_x+1, :] = img[min_y: max_y+1, min_x:max_x+1, :]
+    return new_img
+
+def generate_manhattan_solution(img, coords, path):
+    for i in range(1, len(path)):
+        ax, ay = coords[path[i]]
+        bx, by = coords[path[i-1]]
+        img = cv2.line(img, [ax, ay], [ax, by], GREEN, 1)
+        img = cv2.line(img, [ax, by], [bx, by], GREEN, 1)
+    ax, ay = coords[path[0]]
+    bx, by = coords[path[-1]]
+    img = cv2.line(img, [ax, ay], [ax, by], GREEN, 1)
+    img = cv2.line(img, [ax, by], [bx, by], GREEN, 1)
+    return img
+
+WC = [1]
+EC = [0]
+a = np.array(
+    [[EC, WC, EC],
+    [WC, WC, WC],
+    [EC, WC, EC]]
+)
 random.seed(1)
-if __name__ == '__main__':
-    arg = sys.argv[1]
+coords = generate_coordinates(10)
+for i in range(100):
+    city = generate_city(coords)
+    subset = random.sample(coords, 10)
+    dists = generate_manhattan_distances(subset)
+    tsp_sol = held_karp(dists)
+    city = draw_dots(city, subset, RED)
+    cv2.imwrite("inputs/input_%05d.png" %i, city)
+    soln = generate_manhattan_solution(city, subset, tsp_sol[1])
+    soln = draw_dots(soln, subset, RED)
+    cv2.imwrite("outputs/output_%05d.png" %i, soln)
 
-    if arg.endswith('.csv'):
-        dists = read_distances(arg)
-    else:
-        for i in range(100):
-            coords = generate_coordinates(int(arg))
-            dists = generate_distances(coords)
-            tsp_sol = held_karp(dists)
-            img = np.ones((100, 100, 3), np.uint8)
-            img *= 255
-            img = draw_dots(img, coords)
-            cv2.imwrite("inputs/img%d.png" %i, img)
-            img = draw_sol(img, coords, tsp_sol[1])
-            cv2.imwrite("outputs/img%d.png" %i, img)
-
-
-    # Pretty-print the distance matrix
-    for row in dists:
-        print(''.join([str(int(n)).rjust(3, ' ') for n in row]))
-
-    print('')
-
-    print(tsp_sol)
+# gray = cv2.cvtColor(city, cv2.COLOR_BGR2GRAY)
+# gray /= 255.0
+# b = cv2.filter2D(gray, -1, a)
+# if __name__ == '__main__':
+#     arg = sys.argv[1]
+#
+#     if arg.endswith('.csv'):
+#         dists = read_distances(arg)
+#     else:
+#         for i in range(100):
+#             coords = generate_coordinates(int(arg))
+#             dists = generate_distances(coords)
+#             tsp_sol = held_karp(dists)
+#             img = np.ones((100, 100, 3), np.uint8)
+#             img *= 255
+#             img = draw_dots(img, coords)
+#             cv2.imwrite("inputs/img%d.png" %i, img)
+#             img = draw_sol(img, coords, tsp_sol[1])
+#             cv2.imwrite("outputs/img%d.png" %i, img)
+#
+#     # Pretty-print the distance matrix
+#     for row in dists:
+#         print(''.join([str(int(n)).rjust(3, ' ') for n in row]))
+#
+#     print('')
+#
+#     print(tsp_sol)
