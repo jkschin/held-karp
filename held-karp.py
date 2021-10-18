@@ -6,7 +6,8 @@ import numpy as np
 import cv2
 
 size = (256, 256, 3)
-delta = 1
+size = (128, 128, 3)
+delta = 5
 RED = (0, 0, 255)
 BLUE = (255, 0, 0)
 GREEN = (0, 255, 0)
@@ -144,9 +145,10 @@ def read_distances(filename):
 
 def draw_dots(img, coords, color):
     for coord in coords:
+        r = delta // 2
         x, y = coord
         # OpenCV has BGR instead of RGB
-        img[y, x] = color
+        img[y-r: y+r+1, x-r:x+r+1] = color
     return img
 
 
@@ -183,27 +185,27 @@ def generate_city(coords):
         xb = [x, size[0]]
         ya = [0, y]
         yb = [size[1], y]
-        img = cv2.line(img, xa, xb, WHITE, 1)
-        img = cv2.line(img, ya, yb, WHITE, 1)
+        img = cv2.line(img, xa, xb, WHITE, delta//2)
+        img = cv2.line(img, ya, yb, WHITE, delta//2)
     # img = draw_dots(img, coords, (0, 0, 255))
     min_x = min(map(lambda x: x[0], coords))
     max_x = max(map(lambda x: x[0], coords))
     min_y = min(map(lambda x: x[1], coords))
     max_y = max(map(lambda x: x[1], coords))
-    new_img = np.zeros(size, np.uint8)
-    new_img[min_y: max_y+1, min_x:max_x+1, :] = img[min_y: max_y+1, min_x:max_x+1, :]
-    return new_img
+    # new_img = np.zeros(size, np.uint8)
+    # new_img[min_y: max_y+1, min_x:max_x+1, :] = img[min_y: max_y+1, min_x:max_x+1, :]
+    return img
 
 def generate_manhattan_solution(img, coords, path):
     for i in range(1, len(path)):
         ax, ay = coords[path[i]]
         bx, by = coords[path[i-1]]
-        img = cv2.line(img, [ax, ay], [ax, by], GREEN, 1)
-        img = cv2.line(img, [ax, by], [bx, by], GREEN, 1)
+        img = cv2.line(img, [ax, ay], [ax, by], GREEN, delta//2)
+        img = cv2.line(img, [ax, by], [bx, by], GREEN, delta//2)
     ax, ay = coords[path[0]]
     bx, by = coords[path[-1]]
-    img = cv2.line(img, [ax, ay], [ax, by], GREEN, 1)
-    img = cv2.line(img, [ax, by], [bx, by], GREEN, 1)
+    img = cv2.line(img, [ax, ay], [ax, by], GREEN, delta//2)
+    img = cv2.line(img, [ax, by], [bx, by], GREEN, delta//2)
     return img
 
 WC = [1]
@@ -214,15 +216,17 @@ a = np.array(
     [EC, WC, EC]]
 )
 random.seed(1)
-coords = generate_coordinates(10)
+coords = generate_coordinates(5)
 for i in range(100):
+    print(i)
     city = generate_city(coords)
     subset = random.sample(coords, 10)
     dists = generate_manhattan_distances(subset)
     tsp_sol = held_karp(dists)
     city = draw_dots(city, subset, RED)
     cv2.imwrite("inputs/input_%05d.png" %i, city)
-    soln = generate_manhattan_solution(city, subset, tsp_sol[1])
+    soln = np.zeros(size)
+    soln = generate_manhattan_solution(soln, subset, tsp_sol[1])
     soln = draw_dots(soln, subset, RED)
     cv2.imwrite("outputs/output_%05d.png" %i, soln)
 
